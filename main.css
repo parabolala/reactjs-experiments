@@ -1,0 +1,12 @@
+.port-list {
+    margin: 0 auto;
+    max-width: 400px;
+}
+
+.port-connect {
+    margin-left: 10px;
+}
+
+.active {
+    font-weight: bold;
+}
