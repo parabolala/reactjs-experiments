@@ -17,16 +17,6 @@ RoombaAPIClient.prototype.Request = function(type, path, success, error, data) {
     $.ajax(opts);
 };
 
-var _errorHandler = function(string_handler){
-    return function(e) {
-        var s = e.status + ' ' + e.statusText;
-        if (e.status == 500 && e.responseJSON) {
-            s += ": " + e.responseJSON.reason;
-        }
-        string_handler(s);
-    };
-};
-
 RoombaAPIClient.prototype.Drive = function(connection_id, velocity, radius, 
                                            success, error) {
     data = {velocity: velocity, radius: radius};
@@ -40,18 +30,18 @@ RoombaAPIClient.prototype.ListPorts = function(success, error) {
         success(response_data.ports);
     };
 
-    this.Request("GET", "ports", _success, _errorHandler(error));
+    this.Request("GET", "ports", _success, error);
 };
 
 RoombaAPIClient.prototype.Connect = function(port_name, success, error) {
     var _success = function(response_data) {
         success(response_data.connection_id);
     };
-    this.Request("POST", "ports/" + port_name, _success, _errorHandler(error));
+    this.Request("POST", "ports/" + port_name, _success, error);
 }
 
 RoombaAPIClient.prototype.Disconnect = function(connection_id, success, error) {
-    this.Request("DELETE", "connection/" + connection_id, success, _errorHandler(error));
+    this.Request("DELETE", "connection/" + connection_id, success, error);
 }
 
 RoombaAPIClient.prototype.Sensor = function(connection_id, packet_id, success, error) {
@@ -61,7 +51,7 @@ RoombaAPIClient.prototype.Sensor = function(connection_id, packet_id, success, e
     };
 
     this.Request("GET", "connection/" + connection_id + "/sensor/" + packet_id,
-            _success, _errorHandler(error));
+            _success, error);
 };
 
 RoombaAPIClient.prototype.SensorList = function(connection_id, packet_ids, success, error) {
@@ -77,7 +67,7 @@ RoombaAPIClient.prototype.SensorList = function(connection_id, packet_ids, succe
 
     qs = $.param({"packet_id": packet_ids}, true);
     this.Request("GET", "connection/" + connection_id + "/sensor/list?" + qs,
-            _success, _errorHandler(error));
+            _success, error);
 };
 
 
