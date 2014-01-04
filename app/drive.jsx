@@ -7,7 +7,17 @@ var right = 0x02;
 var up    = 0x04;
 var left  = 0x08;
 
-function keycodeMask(keycode) {
+var DIRECTIONS = ["left", "up", "down", "right"]
+var DIRECTION_KEYS = {up: up, down: down, left: left, right: right}
+
+/**
+ * Converts keycodes in range 37-40 to mask-able values 1, 2, 4, 8.
+ * Args:
+ *   keycode: int.
+ * Returns:
+ *   mask corresponding to give keycode.
+ */
+var keycodeMask = function(keycode) {
     if (37 <= keycode && keycode <= 40) {
         return 1 << (40 - keycode);
     } else {
@@ -15,6 +25,54 @@ function keycodeMask(keycode) {
     }
 }
 
+/** 
+ * Converts a bitmask of currently pressed keys to a pair of velocity and radius.
+ *
+ * Args:
+ *   values: bitmask of pressed keys, as returned by keycodeMask.
+ * Returns:
+ *   An object with two fields: radius and velocity.
+ */
+var getVelocityAndRadius = function(value) {
+    var radius = 32767;
+
+    var up = DIRECTION_KEYS.up;
+    var down = DIRECTION_KEYS.down;
+    var left = DIRECTION_KEYS.left;
+    var right = DIRECTION_KEYS.right;
+
+    if (value & up) {
+        speed = 300;
+    } else if (value & down) {
+        speed = -300;
+    } else {
+        if (value & (left | right)) {
+            speed = 200;
+        } else {
+            speed = 0;
+            radius = 0;
+        }
+    }
+
+    if (value & right) {
+        if (value & (up | down)) {
+            radius = -200;
+        } else {
+            radius = -1;
+        }
+    } else if (value & left) {
+        if (value & (up | down)) {
+            radius = 200;
+        } else {
+            radius = 1;
+        }
+    }
+
+    return {
+        velocity: speed,
+        radius: radius
+    };
+}
 /**
  * ActuatorPanel component.
  * Takes two props:
@@ -22,30 +80,49 @@ function keycodeMask(keycode) {
  *   roomba: RoombaAPIClient instance.
  */
 var ActuatorPanel = React.createClass({
-    DIRECTIONS: ["left", "up", "down", "right"],
-    DIRECTION_KEYS: {up: up, down: down, left: left, right: right},
     getInitialState: function() {
         var state = {
+            // Pressed state for UI. May lag behind actual state.
             pressed_state: 0
         };
         return state;
     },
     press: function(keycode) {
         this.updatePressedState(
-            this.state.pressed_state | keycodeMask(keycode)
+            this.getRealPressedState() | keycodeMask(keycode)
         );
     },
     unpress: function(keycode) {
+        Log("unpressed " + keycodeMask(keycode));
         this.updatePressedState(
-            this.state.pressed_state & ~(keycodeMask(keycode))
+            this.getRealPressedState() & ~(keycodeMask(keycode))
         );
     },
-    updatePressedState: function(new_state) {
-        if (this.state.pressed_state != new_state) {
-            this.setState({pressed_state: new_state});
+    getRealPressedState: function() {
+        var state = this.pendingPressedState;
+        if (state == null) {
+            state = this.state.pressed_state;
         }
+        return state;
+    },
+    updatePressedState: function(new_state) {
+        Log("requested_state " + new_state);
+        if (this.pendingPressedState == null) {
+            // Batch all the key presses for 0.2s.
+            setTimeout(function() {
+                var requested_state = this.pendingPressedState;
+                this.pendingPressedState = null;
+                Log("current_state " + this.state.pressed_state);
+                if (this.state.pressed_state != requested_state) {
+                    this.setState({pressed_state: requested_state});
+                }
+            }.bind(this), 200);
+        }
+        this.pendingPressedState = new_state;
     },
     componentWillMount: function() {
+        this.initialRender = true;
+
         $(document).keydown(function(e) {
             if (keycodeMask(e.keyCode)) {
                 this.press(e.keyCode);
@@ -67,8 +144,8 @@ var ActuatorPanel = React.createClass({
         $(document).off("keyup");
     },
     render: function() {
-        var arrows = this.DIRECTIONS.map(function(dir) {
-            var pressed = this.state.pressed_state & this.DIRECTION_KEYS[dir];
+        var arrows = DIRECTIONS.map(function(dir) {
+            var pressed = this.state.pressed_state & DIRECTION_KEYS[dir];
             var glyph_class = "glyphicon-" + (pressed ? "arrow" : "chevron") + "-" + dir;
             var classes = "glyphicon " + glyph_class;
             if (pressed) {
@@ -80,13 +157,17 @@ var ActuatorPanel = React.createClass({
             );
         }.bind(this));
 
-        var drive_params = this.getVelocityAndRadius();
-        this.props.roomba.Drive(
-                this.props.connection.id,
-                drive_params.velocity,
-                drive_params.radius,
-                function() {},
-                function(err) { Log("drive error: " + err.responseJSON.reason); });
+        if (!this.initialRender) {
+            var drive_params = getVelocityAndRadius(this.state.pressed_state);
+            this.props.roomba.Drive(
+                    this.props.connection.id,
+                    drive_params.velocity,
+                    drive_params.radius,
+                    function() {},
+                    function(err) { Log("drive error: " + err.responseJSON.reason); });
+        } else {
+            this.initialRender = false;
+        };
 
         return (
             <div>
@@ -94,45 +175,4 @@ var ActuatorPanel = React.createClass({
             </div>
         );
     },
-    getVelocityAndRadius: function() {
-        var value = this.state.pressed_state;
-        var radius = 32767;
-
-        var up = this.DIRECTION_KEYS.up;
-        var down = this.DIRECTION_KEYS.down;
-        var left = this.DIRECTION_KEYS.left;
-        var right = this.DIRECTION_KEYS.right;
-
-        if (value & up) {
-            speed = 300;
-        } else if (value & down) {
-            speed = -300;
-        } else {
-            if (value & (left | right)) {
-                speed = 200;
-            } else {
-                speed = 0;
-                radius = 0;
-            }
-        }
-
-        if (value & right) {
-            if (value & (up | down)) {
-                radius = -200;
-            } else {
-                radius = -1;
-            }
-        } else if (value & left) {
-            if (value & (up | down)) {
-                radius = 200;
-            } else {
-                radius = 1;
-            }
-        }
-
-        return {
-            velocity: speed,
-            radius: radius
-        };
-    }
 });
