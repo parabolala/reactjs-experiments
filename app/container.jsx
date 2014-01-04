@@ -58,6 +58,7 @@ var ControlPanel = React.createClass({
                </div>
                <SensorsPanel connection={this.state.connection} roomba={this.state.roomba}/>
                <ActuatorPanel connection={this.state.connection} roomba={this.state.roomba}/>
+               <img className="camera" src="/video" alt="Video feed" />
              </div>
             )
             :
