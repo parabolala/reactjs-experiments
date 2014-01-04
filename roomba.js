@@ -72,6 +72,12 @@ RoombaAPIClient.prototype.SensorList = function(connection_id, packet_ids, succe
 
 
 var packetShape = {
+    25: {
+        signed: false,
+    },
+    26: {
+        signed: false,
+    },
     39: {
         signed: true
     }
@@ -81,12 +87,12 @@ var packetShape = {
 
 var conversionMap = {
     1: {
-        true: Int8Array,
-        false: Uint8Array
+        true: function(dv) { return dv.getInt8(0); },
+        false: function(dv) { return dv.getUint8(0); }
     },
     2: {
-        true: Int16Array,
-        false: Uint16Array
+        true: function(dv) { return dv.getInt16(0, false); },
+        false: function(dv) { return dv.getUint16(0, false); }
     }
 };
 
@@ -130,7 +136,6 @@ var decodeSensorValue = function(packet_id, b64data) {
         return undefined;
     }
 
-    var tab = new convType(ab);
-
-    return tab[0];
+    var dv = new DataView(ab);
+    return convType(dv);
 };
